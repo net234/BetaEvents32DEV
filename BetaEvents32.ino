@@ -51,7 +51,8 @@
      V3.0.B3  02/2024   delayedevent  remove ALL  previous evants
     V3.0.C    10/02/2024   renomage des delayedEvents
     V3.0.C1   27/02/2024   depart clone Betaevent32DEV
-    
+betaEvents32 V3.0.D  07/03/2024
+      reprise en main PROD/DEV    
     *************************************************/
 
 #ifndef APP_NAME
@@ -306,7 +307,7 @@ void loop() {
         Events.delayedPushMilli(1000, evR1);
         static long start = millis();
         static long cnt = 0;
-        TV_println("evR1 err=", (millis()-start)-cnt++*1000);
+        TV_println("evR1 err=", (millis() - start) - cnt++ * 1000);
       }
       break;
 
@@ -314,7 +315,7 @@ void loop() {
       {
         static long start = millis();
         static long cnt = 0;
-        TV_println("evR2   err=", (millis()-start)-cnt++*1000);
+        TV_println("evR2   err=", (millis() - start) - cnt++ * 1000);
       }
       break;
 

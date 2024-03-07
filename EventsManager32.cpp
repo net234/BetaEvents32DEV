@@ -41,7 +41,9 @@
        more arduino like lib with self built in instance
 
     V2.3    09/03/2022   isolation of evHandler for compatibility with dual core ESP32
-
+betaEvents32 V3.0.D  07/03/2024
+      reprise en main PROD/DEV
+      
  *************************************************/
 //#define BETAEVENTS_CCP
 
