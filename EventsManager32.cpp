@@ -523,19 +523,19 @@ void EventManager::reset() {
 
 #ifndef _Time_h
 byte second() {
-  return second(evManager.timestamp);
+  return second(Events.timestamp);
 }
 byte second(time_t time) {
   return (time % 60);
 }
 byte minute() {
-  return minute(evManager.timestamp);
+  return minute(Events.timestamp);
 }
 byte minute(time_t time) {
   return ((time / 60) % 60);
 }
 byte hour() {
-  return hour(evManager.timestamp);
+  return hour(Events.timestamp);
 }
 byte hour(time_t time) {
   return ((time / 3600) % 24);

@@ -1,3 +1,4 @@
+#include "evHelpers.h"
 /*************************************************
  *************************************************
     handler evHandlers.cpp   validation of lib betaEvents to deal nicely with events programing with Arduino
@@ -251,7 +252,7 @@ void evHandlerDebug::handle() {
           Serial.print(F(",Nill="));
           Serial.print(Events._evNillParsec);
           Serial.print(F(",Ram="));
-          Serial.print(Events.freeRam());
+          Serial.print(helperFreeRam());
 #ifdef ESP8266
           Serial.print(F(",Frag="));
           Serial.print(ESP.getHeapFragmentation());
