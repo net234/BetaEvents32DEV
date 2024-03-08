@@ -452,7 +452,7 @@ void loop() {
 
       if (Keyboard.inputString.equals(F("WIFIOFF"))) {
         WiFi.mode(WIFI_OFF);
-        //WiFi.forceSleepBegin();
+        WiFi.forceSleepBegin();
         T_print("WIFI_OFF")
          V_println(WiFi.getMode());
       }
