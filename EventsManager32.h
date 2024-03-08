@@ -50,33 +50,27 @@
 
     V2.3    09/03/2022   isolation of evHandler for compatibility with dual core ESP32
      V3.0 
-
-     betaEvents32 V3.0.D  07/03/2024
-      reprise en main PROD/DEV
-
-
-
  *************************************************/
 #pragma once
 #include <Arduino.h>
 
 
-
-
 // betaEvent handle a minimal time system to get for seconds() minutes() or hours()
-//#include <TimeLib.h>  // uncomment this if you prefer to use arduino TimeLib.h  (it will use little more ram and flash)
+
+#include <TimeLib.h>  // uncomment this if you prefer to use arduino TimeLib.h  (it will use little more ram and flash)
 
 
+
+void displaySizeofItems();
 
 class EventManager;
-/*
+
 #ifndef _Time_h
-extern byte second(uint32_t time );
-extern byte minute(uint32_t time );
-extern byte hour(uint32_t time );
+extern byte second();
+extern byte minute();
+extern byte hour();
 #endif
-*/
-#include "evHelpers.h"
+
 
 //Basic system events
 enum tEventCode {
@@ -108,7 +102,7 @@ struct stdEvent_t {
   //  stdEvent_t(const uint8_t code = evNill, const uint8_t ext ) : code(code), ext(ext) {};
   //  stdEvent_t(const uint8_t code = evNill, const char aChar) : code(code), aChar(aChar) {};
 
-  stdEvent_t(const stdEvent_t& stdevent)
+  stdEvent_t(const stdEvent_t& stdevent) 
     : code(stdevent.code), intExt2(stdevent.intExt2), data(stdevent.data){};
 
   uint8_t code;     // code of the event
@@ -139,7 +133,7 @@ public:
 };
 
 #include "evHandlers.h"
-#define evManager Events
+//#define evManager Events
 struct eventItem_t;
 struct delayEventItem_t;
 struct longDelayEventItem_t;
@@ -170,17 +164,13 @@ public:
   //bool forceDelayedPushMilli(const uint32_t delayMillisec, const uint8_t code);
   bool forceDelayedPushMilli(const uint32_t delayMillisec, const uint8_t code, const int16_t param1 = 0, const int16_t param2 = 0);
   //    int    syncroSeconde(const int millisec = 0);
-
-  /*
 #ifndef _Time_h
   friend byte second();
   friend byte minute();
   friend byte hour();
 #endif
-//  size_t freeRam();
-//  void reset();
-*/
-
+  size_t freeRam();
+  void reset();
 #ifndef _Time_h
   uint32_t timestamp = 0;  //timestamp en seconde  (more than 100 years)
 #endif
@@ -212,4 +202,7 @@ private:
   //eventHandler_t*   getEventList = nullptr;
 };
 
+
+
 extern EventManager Events;
+ 
