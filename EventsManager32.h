@@ -61,22 +61,23 @@
 #include <Arduino.h>
 
 
+
+
 // betaEvent handle a minimal time system to get for seconds() minutes() or hours()
 
-#include <TimeLib.h>  // uncomment this if you prefer to use arduino TimeLib.h  (it will use little more ram and flash)
+//#include <TimeLib.h>  // uncomment this if you prefer to use arduino TimeLib.h  (it will use little more ram and flash)
 
 
-
-void displaySizeofItems();
 
 class EventManager;
-
+/*
 #ifndef _Time_h
-extern byte second();
-extern byte minute();
-extern byte hour();
+extern byte second(uint32_t time );
+extern byte minute(uint32_t time );
+extern byte hour(uint32_t time );
 #endif
-
+*/
+#include "evHelpers.h"
 
 //Basic system events
 enum tEventCode {
@@ -170,13 +171,17 @@ public:
   //bool forceDelayedPushMilli(const uint32_t delayMillisec, const uint8_t code);
   bool forceDelayedPushMilli(const uint32_t delayMillisec, const uint8_t code, const int16_t param1 = 0, const int16_t param2 = 0);
   //    int    syncroSeconde(const int millisec = 0);
+
+  /*
 #ifndef _Time_h
   friend byte second();
   friend byte minute();
   friend byte hour();
 #endif
-  size_t freeRam();
-  void reset();
+//  size_t freeRam();
+//  void reset();
+*/
+
 #ifndef _Time_h
   uint32_t timestamp = 0;  //timestamp en seconde  (more than 100 years)
 #endif
@@ -208,8 +213,4 @@ private:
   //eventHandler_t*   getEventList = nullptr;
 };
 
-
-
 extern EventManager Events;
-
-#include "evHelpers.h"

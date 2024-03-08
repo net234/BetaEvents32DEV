@@ -76,7 +76,7 @@ betaEvents32 V3.0.D  07/03/2024
 //#define NO_DEBUGGER // this remove debug instance
 
 #include "EventsManager32.h"
-EventManager Events = EventManager();
+//EventManager Events = EventManager();
 // instance Serial
 evHandlerSerial Keyboard;
 evHandlerDebug Debug;
@@ -123,11 +123,14 @@ evHandlerButton BP0(evBP0, BP0_PIN);
 evHandlerLed Led0(evLed0, LED_BUILTIN, HIGH);
 evHandlerLed Led1(evLed1, LED1_PIN, HIGH);
 
+/*
 // init UDP
 #include "evHandlerUdp.h"
 String nodeName = "BetaEvent32";
 const unsigned int localUdpPort = 23423;  // local port to listen on
 evHandlerUdp myUdp(evUdp, localUdpPort, nodeName);
+*/
+
 
 bool sleepOk = true;
 int multi = 0;  // nombre de clic rapide
@@ -159,7 +162,7 @@ void setup() {
   Led1.setMillisec(2000, 10);
   Serial.println("Bonjour ....");
   DV_println(sizeof(stdEvent_t));
-  displaySizeofItems();
+  //displaySizeofItems();
   DV_println(sizeof(size_t));
   DV_println(sizeof(int));
   DV_println(sizeof(long));
@@ -185,7 +188,7 @@ void loop() {
     case evInit:
       {
         Serial.println("ev init");
-        myUdp.broadcastInfo("Boot");
+        //myUdp.broadcastInfo("Boot");
       }
       break;
 
@@ -193,7 +196,7 @@ void loop() {
       if (sendInfo) {
         String aStr = F("SECONDE=");
         aStr += second();
-        myUdp.broadcastInfo(aStr);
+        //myUdp.broadcastInfo(aStr);
       }
       break;
 
@@ -256,7 +259,7 @@ void loop() {
 
 
 
-
+/*
     case evUdp:
       if (Events.ext == evxUdpRxMessage) {
         DTV_println("got an Event UDP", myUdp.rxJson);
@@ -282,7 +285,7 @@ void loop() {
         }
       }
       break;
-
+*/
     case ev1S:
       Serial.println(F("EV1S"));
       V_println(helperFreeRam());
@@ -321,7 +324,7 @@ void loop() {
 
 
     case doReset:
-      Events.reset();
+      helperReset();
       break;
 
 
@@ -355,41 +358,43 @@ void loop() {
       if (Keyboard.inputString.equals(F("O"))) {
         Serial.println(F("Push 3 delay events"));
         Serial.print(F("Ram="));
-        Serial.println(Events.freeRam());
+        Serial.println(helperFreeRam());
         Events.delayedPushMilli(500, ev1S);
         Events.delayedPushMilli(11 * 1000, ev2S);
         Events.delayedPushMilli(11L * 60 * 1000, ev3S);
         Serial.print(F("Ram="));
-        Serial.println(Events.freeRam());
+        Serial.println(helperFreeRam());
       }
       if (Keyboard.inputString.equals(F("P1"))) {
         Serial.println(F("Push 3 delay events"));
         Serial.print(F("Ram="));
-        Serial.println(Events.freeRam());
+        Serial.println(helperFreeRam());
         Events.push(ev1S, 1011, 1002);
         Events.forceDelayedPushMilli(1000, ev1S, 1111, 1102);
         Events.delayedPushMilli(2000, ev2S, 2222, 2202);
         Events.delayedPushMilli(3000, ev3S, 3333, 3302);
         Serial.print(F("Ram="));
-        Serial.println(Events.freeRam());
+        Serial.println(helperFreeRam());
       }
       if (Keyboard.inputString.equals(F("P2"))) {
         Serial.println(F("Push 3 events"));
         Serial.print(F("Ram="));
-        Serial.println(Events.freeRam());
+        Serial.println(helperFreeRam());
         Events.delayedPushMilli(0, ev1S, 1, 11);
         Events.delayedPushMilli(0, ev2S, 2, 12);
         Events.delayedPushMilli(0, ev3S, 3, 13);
         Serial.print(F("Ram="));
-        Serial.println(Events.freeRam());
+        Serial.println(helperFreeRam());
       }
+
+      /*
       if (Keyboard.inputString.equals(F("BCAST"))) {
         Serial.println(F("bCast 3 messages"));
         myUdp.broadcastInfo(F("message1"));
         myUdp.broadcastInfo(F("message2"));
         myUdp.broadcastInfo(F("message3"));
       }
-
+      */
       if (Keyboard.inputString.equals(F("R0"))) {
         Serial.println(F("remove repeat 1s"));
         Events.removeDelayEvent(evR1);
@@ -425,11 +430,10 @@ void loop() {
         }
       }
       if (Keyboard.inputString.equals(F("FREE"))) {
-        Serial.print(F("Ram="));
-        Serial.println(Events.freeRam());
         String aStr = F("FREE=");
-        aStr += String(Events.freeRam());
-        myUdp.broadcastInfo(aStr);
+        aStr += String(helperFreeRam());
+        Serial.println(aStr);
+        //myUdp.broadcastInfo(aStr);
       }
 
       if (Keyboard.inputString.equals(F("RESET"))) {
@@ -439,10 +443,10 @@ void loop() {
       if (Keyboard.inputString.equals(F("INFO"))) {
         String aStr = F(" CPU=");
         aStr += String(Events._percentCPU);
-        aStr += F(" ack=");
-        aStr += String(myUdp.ackPercent);
-        aStr += F("%");
-        myUdp.broadcastInfo(aStr);
+        //aStr += F(" ack=");
+        //aStr += String(myUdp.ackPercent);
+        aStr += F("% APP=" APP_NAME);
+        //myUdp.broadcastInfo(aStr);
         DV_print(aStr)
       }
 

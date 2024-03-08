@@ -1,10 +1,10 @@
-#include "evHelpers.h"
+//#include "evHelpers.h"
 /****************
  *  liste simplifiée pour EvManager
 
 
  *  cloné a partir de SList.h de ESP8266 WiFi
- *  V1.0  pour les evHandlerUdp   
+ *  V1.0  pour les evHandlerUdp    
  * TODO : a utiliser pour evmanager
  * TODO : gerer correctement les protectde
  * 

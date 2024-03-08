@@ -1,4 +1,5 @@
-#include "evHelpers.h"
+#include <sys/_timeval.h>
+//#include "evHelpers.h"
 /*************************************************
      Sketch betaEvents.ino   validation of lib betaEvents to deal nicely with events programing with Arduino
     Copyright 2020 Pierre HENRY net23@frdev.com All - right reserved.
@@ -43,6 +44,7 @@
     V2.3    09/03/2022   isolation of evHandler for compatibility with dual core ESP32
 betaEvents32 V3.0.D  07/03/2024
       reprise en main PROD/DEV
+      Try auto instance Events
       
  *************************************************/
 //#define BETAEVENTS_CCP
@@ -92,11 +94,12 @@ struct longDelayEventItem_t : public stdEvent_t {
 };
 
 
-
+/*
 #ifdef __AVR__
 #include <avr/sleep.h>
 #include <avr/wdt.h>
 #endif
+*/
 
 //#ifdef ESP32
 //#include <driver/uart.h>
@@ -484,6 +487,8 @@ bool EventManager::removeDelayEvent(const byte codeevent) {
 }
 
 
+EventManager Events = EventManager();
+/*
 //====== Sram dispo =========
 size_t EventManager::freeRam() {
 #ifndef __AVR__
@@ -508,20 +513,31 @@ void EventManager::reset() {
     delay(1);
   }
 }
+*/
 
-void displaySizeofItems() {
-  DV_println(sizeof(delayEventItem_t));
-  DV_println(sizeof(longDelayEventItem_t));
-};
+
+//void displaySizeofItems() {
+//  DV_println(sizeof(delayEventItem_t));
+//  DV_println(sizeof(longDelayEventItem_t));
+//};
 
 #ifndef _Time_h
 byte second() {
-  return (evManager.timestamp % 60);
+  return second(evManager.timestamp);
+}
+byte second(time_t time) {
+  return (time % 60);
 }
 byte minute() {
-  return ((evManager.timestamp / 60) % 60);
+  return minute(evManager.timestamp);
+}
+byte minute(time_t time) {
+  return ((time / 60) % 60);
 }
 byte hour() {
-  return ((evManager.timestamp / 3600) % 24);
+  return hour(evManager.timestamp);
+}
+byte hour(time_t time) {
+  return ((time / 3600) % 24);
 }
 #endif
