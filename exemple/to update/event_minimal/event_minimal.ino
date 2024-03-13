@@ -52,7 +52,7 @@ enum tUserEventCode {
 
 
 // instance EventManager
-//EventManager Events = EventManager();
+EventManager Events = EventManager();
 
 // instance clavier
 evHandlerSerial Keyboard(115200);

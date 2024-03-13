@@ -72,9 +72,9 @@ betaEvents32 V3.0.D  07/03/2024
 
 #define DEFAULT_PIN
 //par defaut le debug
-//#define NO_DEBUG   // this keyword remove all Dxx_print  from code
+
 //#define NO_DEBUGGER // this remove debug instance
-#define DEBUG_ON
+#define DEBUG_ON     // this keyword active all Dxx_print  
 #include "EventsManager32.h"
 //EventManager Events = EventManager();
 // instance Serial
@@ -109,9 +109,10 @@ enum tUserEventCode {
 };
 
 
-#define BP0_PIN 0  //D3
-#define BP1_PIN 14
-#define LED1_PIN 16
+#define BP0_PIN D3 // GPIO 0   FLASH BP
+//#define BP1_PIN D5 // GPIO 14
+#define LED0_PIN D4 // GPIO 2  EP8266  Modudel LED
+#define LED1_PIN D0 // GPIO 16  nodemcu Board LED
 
 
 // instances poussoir
@@ -140,7 +141,7 @@ void setup() {
   enableWiFiAtBootTime();  // mendatory for autoconnect WiFi with ESP8266 kernel 3.0
   // IO Setup
 
-  
+
 
   //Serial.begin(115200);
   //Serial.println(F("\r\n\n" APP_NAME));
@@ -148,10 +149,18 @@ void setup() {
   // Start instance
   Events.begin();
   Serial.println(F("\r\n\n" APP_NAME));
+
+  /*
+  rst_info* resetInfoPtr = ESP.getResetInfoPtr();
+  DV_println( ESP.getResetReason());
+  DV_println( ESP.getResetInfo());
+  DV_println(resetInfoPtr->reason);
+  */
+
   Led0.setFrequence(1, 10);
   Led1.setMillisec(2000, 10);
 
-//  force Wifi en STA
+  //  force Wifi en STA
   if (WiFi.getMode() != WIFI_STA) {
     Serial.println(F("!!! Force WiFi to STA mode !!!"));
     WiFi.mode(WIFI_STA);
@@ -263,7 +272,7 @@ void loop() {
 
 
 
-/*
+      /*
     case evUdp:
       if (Events.ext == evxUdpRxMessage) {
         DTV_println("got an Event UDP", myUdp.rxJson);
@@ -363,9 +372,9 @@ void loop() {
         Serial.println(F("Push 3 delay events"));
         Serial.print(F("Ram="));
         Serial.println(helperFreeRam());
-        Events.delayedPushMilli(500, ev1S,111);
-        Events.delayedPushMilli(5 * 1000, ev2S,222);
-        Events.delayedPushMilli(10 * 1000, ev3S,333);
+        Events.delayedPushMilli(500, ev1S, 111);
+        Events.delayedPushMilli(5 * 1000, ev2S, 222);
+        Events.delayedPushMilli(10 * 1000, ev3S, 333);
         Serial.print(F("Ram="));
         Serial.println(helperFreeRam());
       }
@@ -459,7 +468,7 @@ void loop() {
         WiFi.mode(WIFI_OFF);
         WiFi.forceSleepBegin();
         T_print("WIFI_OFF")
-         V_println(WiFi.getMode());
+          V_println(WiFi.getMode());
       }
 
 
@@ -467,8 +476,29 @@ void loop() {
         WiFi.mode(WIFI_STA);
         //WiFi.begin();
         T_print("WIFI_STA")
-        V_println(WiFi.getMode());
+          V_println(WiFi.getMode());
       }
+
+
+      if (Keyboard.inputString.equals(F("WIFILOCK"))) {
+        T_print("WIFILOCK");
+        ESP.deepSleep(50L * 1000, RF_DEFAULT);  //reset in 50 ms to clear RF_DISABLED
+
+        T_print("LOCKED");
+        V_println(WiFi.getMode());
+        while (true) delay(1);
+      }
+
+      if (Keyboard.inputString.equals(F("WIFIUNLOCK"))) {
+        T_print("WIFIUNLOCK");
+        ESP.deepSleep(50L * 1000, RF_DEFAULT);  //reset in 50 ms to clear RF_DISABLED
+
+        T_print("UNLOCKED");
+        V_println(WiFi.getMode());
+        while (true) delay(1);
+      }
+
+
 
 
       break;

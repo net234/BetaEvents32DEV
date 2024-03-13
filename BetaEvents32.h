@@ -80,7 +80,7 @@ evHandlerDebug  Debug;
 // instance poussoir si evBP0 existe
 #ifdef DEFAULT_PIN 
 
-// definition GPIO sur D5 pour BP0 si celuici n'est pas defini
+// definition GPIO sur D3 (FLASH button) pour BP0 si celui ci n'est pas defini
 #ifndef BP0_PIN
 
 #define BP0_PIN D3 // (flash) 
@@ -95,18 +95,19 @@ evHandlerButton BP0(evBP0, BP0_PIN);
 // instance LED si evLed0 existe
 #ifdef DEFAULT_PIN 
 
-//definition GPIO sur LED_BUILTIN pour LED0 si il n'est pas defini par l'utilisateur
+//definition GPIO sur D4 pour LED0 si il n'est pas defini par l'utilisateur
+//LED_BUILTIN n'est plus utilisé 
 #ifndef LED0_PIN
-#define LED0_PIN LED_BUILTIN
+#define LED0_PIN D4
 #endif
 
 #endif
 
 #ifdef  LED0_PIN
-// reverted led on AVR UNO and NANO
 
-//  const bool Led0Revert = true;
-  const bool Led0Revert = false;
+
+//  const bool Led0Revert = true; // reverted led on AVR UNO and NANO
+  const bool Led0Revert = false;  //SUR ESP8266
 
 // led clignotante a 1Hz 
 evHandlerLed    Led0(evLed0, LED0_PIN, Led0Revert , 1);
