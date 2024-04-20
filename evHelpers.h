@@ -1,19 +1,8 @@
-//#include <ctime>
 //Helpers
 // generic helpers out of evManager library
 #pragma once
 #include <arduino.h>
 #define NOT_A_DATE_YEAR 2000
-//#include <TimeLib.h>
-
-#ifndef _Time_h
-extern byte second(time_t time );
-extern byte minute(time_t time );
-extern byte hour(time_t time );
-extern byte second();
-extern byte minute();
-extern byte hour();
-#endif
 
 
 #ifndef NO_DEBUG
@@ -56,8 +45,9 @@ extern byte hour();
 String niceDisplayDelay(time_t aDelay);
 String niceDisplayTime(const time_t time, bool full);
 String Digit2_str(const uint16_t value);
-void   helperReset();
+//void   helperReset();
 //int    helperFreeRam();
+#define  helperReset()   ESP.restart()
 #define  helperFreeRam() ESP.getFreeHeap()
 // extrait un element terminé par aKey de la chaine aString
 // si aKey est absent toute la chaine est extaite

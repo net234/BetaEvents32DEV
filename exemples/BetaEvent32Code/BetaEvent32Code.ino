@@ -68,12 +68,11 @@
 ╚══ IROM     244760   code in flash   
 
 */
-// Name of this application
-#ifndef APP_NAME
-// version de prod
-#define APP_NAME "betaEvents32 V4.0"
-#endif
 
+
+
+// Name of this application
+#define APP_NAME "BetaEvent32Code V1.0"
 
 
 // Eventslist

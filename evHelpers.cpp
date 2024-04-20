@@ -1,5 +1,5 @@
 #include "evHelpers.h"
-
+#include <TimeLib.h>
 //Helper
 
 String Digit2_str(const uint16_t value) {
@@ -86,12 +86,6 @@ String niceDisplayTime(const time_t time, bool full) {
 
   String txt;
   // we supose that time < NOT_A_DATE_YEAR is not a date
-  #ifndef _Time_h
-    txt = "          ";
-    txt += time / (24 * 3600);
-    txt += ' ';
-    txt = txt.substring(txt.length() - 10);
-  #else
   if (year(time) < NOT_A_DATE_YEAR) {
     txt = "          ";
     txt += time / (24 * 3600);
@@ -105,7 +99,7 @@ String niceDisplayTime(const time_t time, bool full) {
     txt += '/';
     txt += year(time);
   }
-#endif
+
   static String date;
   if (!full && txt == date) {
     txt = "";
@@ -119,12 +113,4 @@ String niceDisplayTime(const time_t time, bool full) {
   txt += ':';
   txt += Digit2_str(second(time));
   return txt;
-}
-
-void helperReset() {
-  delay(100);
-  ESP.restart();
-  while (1) {
-    delay(1);
-  }
 }

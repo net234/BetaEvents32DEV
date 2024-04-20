@@ -1,3 +1,5 @@
+#include <sys/_stdint.h>
+//#include <algorithm>
 //#include <sys/_stdint.h>
 /*************************************************
     EventsManager.h   validation of lib betaEvents to deal nicely with events programing with Arduino
@@ -49,7 +51,7 @@
        TODO : faire une liste de get event separés
 
     V2.3    09/03/2022   isolation of evHandler for compatibility with dual core ESP32
-     V3.0 
+     V3.0
  *************************************************/
 #pragma once
 #include <Arduino.h>
@@ -57,152 +59,287 @@
 
 // betaEvent handle a minimal time system to get for seconds() minutes() or hours()
 
-//#include <TimeLib.h>  // uncomment this if you prefer to use arduino TimeLib.h  (it will use little more ram and flash)
-
+#include <TimeLib.h>  // needed with ESP
 #include "evHelpers.h"
-
-void displaySizeofItems();
-
-class EventManager;
-
-#ifndef _Time_h
-extern byte second();
-extern byte minute();
-extern byte hour();
-#endif
+#include "evHandlers.h"
 
 
-//Basic system events
-enum tEventCode {
-  evNill = 0,  // No event  about 1 every milisecond but do not use them for delay Use delayedPushEvent(delay,event)
-  ev100Hz,     // tick 100HZ    non cumulative (see betaEvent.h)
-  ev10Hz,      // tick 10HZ     non cumulative (see betaEvent.h)
-  ev1Hz,       // un tick 1HZ   cumulative (see betaEvent.h)
-  ev24H,       // 24H when timestamp pass over 24H
-  evInit,      // event pushed par MyEvent.begin()
-  evInChar,
-  evInString,
-  //evPB0,
-  //evLED0
-  //  evWEB = 20,
-  //  evUser = 100,
-};
-
-
-// Base structure for event
-struct stdEvent_t {
-  //  stdEvent_t(const uint8_t code = evNill, const int8_t ext = 0) : code(code), ext(ext) {}
-  stdEvent_t()
-    : code(evNill), intExt(0){};
-  stdEvent_t(const uint8_t code, const int aInt = 0)
-    : code(code), intExt(aInt){};
-  stdEvent_t(const uint8_t code, const int16_t int1, const int16_t int2)
-    : code(code), intExt2(int2), intExt(int1){};
-  //stdEvent_t(const uint8_t code = evNill, const float aFloat = 0) : code(code), aFloat(aFloat) {};
-  //  stdEvent_t(const uint8_t code = evNill, const uint8_t ext ) : code(code), ext(ext) {};
-  //  stdEvent_t(const uint8_t code = evNill, const char aChar) : code(code), aChar(aChar) {};
-
-  stdEvent_t(const stdEvent_t& stdevent) 
-    : code(stdevent.code), intExt2(stdevent.intExt2), data(stdevent.data){};
-
-  uint8_t code;     // code of the event
-  int16_t intExt2;  // only in Manager32
-  union {
-    uint8_t ext;  // extCode of the event
-    char charExt;
-    int intExt;
-    String* StringPtr;
-    size_t data;
-  };
-};
 
 
 
 
 // base pour un eventHandler (gestionaire avec un handleEvent);
+// get retourne dans l'ordre :
+// 1 les delayed-event de precision millisecondes  (inferieurs a 1 seconde)
+// 2 les events 100Hz  en non cumulatif
+// 3 les events  10Hz  en non cumulatif   (les ev10Hz scan les delayed events de moins 10 minutes)
+// 4 les event    1Hz  en cumulatif       (les ev1Hz scan les delayed events de plus de 10 minutes)
+// 5 les events des handlers (appel du get de chaque handler)
+// 6 les events presents dans la liste d'attente (push)
+// 7 si l'event precedent n'etait pas un nilEvent un nilEvent est envoyé
+// sinon un delay de 1 millisec effectué
+
 class eventHandler_t {
 public:
   eventHandler_t* next;  // handle suivant
   eventHandler_t();
-  virtual void begin(){};   // called with eventManager::begin
-  virtual void handle(){};  // called
+  virtual void begin(){};   // called with evManager::begin
+  virtual void handle(){};  // calledwith evManager::handle
   virtual byte get() {
     return evNill;
   };
-  //    EventManager evManager;
 };
 
 #include "evHandlers.h"
-//#define evManager Events
-struct eventItem_t;
-struct delayEventItem_t;
-struct longDelayEventItem_t;
-class EventManager : public stdEvent_t {
-public:
+#define evManager Events
 
-  EventManager()
-    : stdEvent_t(evNill) {  // constructeur
-#ifdef EventManagerInstance
-#error "EventManager already intancied"
-#else
-#define EventManagerInstance
-#endif
-  }
-  void begin();
-  byte get(const bool sleep = true);
-  void handle();
 
-  bool removeDelayEvent(const byte codeevent);
-  bool push(const stdEvent_t& eventPtr);
-  bool push(const uint8_t code, const int16_t param = 0);
-  bool push(const uint8_t code, const int16_t param1, const int16_t param2);
-  //   bool   pushFloat(const uint8_t code, const float   afloat);
-  bool delayedPushMilli(const uint32_t delayMillisec, const uint8_t code);
-   bool repeatedPushMilli(const uint32_t delayMillisec, const uint8_t code);
-  bool delayedPushMilli(const uint32_t delayMillisec, const uint8_t code, const int16_t param1, const int16_t param2 = 0);
-  bool repeatedPushMilli(const uint32_t delayMillisec, const uint8_t code, const int16_t param1, const int16_t param2 , const bool repeat= false);
-  //bool forceDelayedPushMilli(const uint32_t delayMillisec, const uint8_t code);
-  bool forceDelayedPushMilli(const uint32_t delayMillisec, const uint8_t code, const int16_t param1 = 0, const int16_t param2 = 0);
-  //    int    syncroSeconde(const int millisec = 0);
-#ifndef _Time_h
- // friend byte second();
- // friend byte minute();
-  //friend byte hour();
-//#endif
-//  size_t freeRam();
-//  void reset();
-//#ifndef _Time_h
-  uint32_t timestamp = 0;  //timestamp en seconde  (more than 100 years)
-#endif
+// Base structure for event
+struct event {
+  event()
+    : code(evNill), ext(0), iParam(0){};
+  event(const uint8_t code, const uint8_t ext = 0, const int16_t iParam = 0)
+    : code(code), ext(ext), iParam(iParam){};
+  //event(const uint8_t code, const int16_t int1, const int16_t int2)
+  //  : code(code), intExt2(int2), intExt(int1){};
+  //stdEvent_t(const uint8_t code = evNill, const float aFloat = 0) : code(code), aFloat(aFloat) {};
+  //  stdEvent_t(const uint8_t code = evNill, const uint8_t ext ) : code(code), ext(ext) {};
+  //  stdEvent_t(const uint8_t code = evNill, const char aChar) : code(code), aChar(aChar) {};
 
-  void addHandleEvent(eventHandler_t* eventHandlerPtr);
-  //    void   addGetEvent(eventHandler_t* eventHandlerPtr);
-private:
-  byte nextEvent();  // Recherche du prochain event disponible
-  void parseDelayList(delayEventItem_t** ItemPtr, const uint16_t aDelay);
-  void parseLongDelayList(longDelayEventItem_t** ItemPtr, const uint16_t aDelay);
-  void addDelayEvent(delayEventItem_t** ItemPtr, delayEventItem_t* aItem);
-  void addLongDelayEvent(longDelayEventItem_t** ItemPtr, longDelayEventItem_t* aItem);
-  bool removeDelayEventFromList(const byte codeevent, delayEventItem_t** nextItemPtr);
-  bool removeLongDelayEventFromList(const byte codeevent, longDelayEventItem_t** nextItemPtr);
+  // stdEvent_t(const stdEvent_t& stdevent)
+  // : code(stdevent.code), ext3(stdevent.ext3), intExt2(stdevent.intExt2), data(stdevent.data){};
+  //: stdEvent_t(stdEvent);
+  uint8_t code;  // code of the event
+  uint8_t ext;   // only in Manager32
+  union {
+    char cParam;
+    int iParam;
+    float fParam;
+    String* strPtrParam;
+    size_t ptrParam;
+  };
+};
 
-public:
-  unsigned long _loopCounter = 0;
-  unsigned long _loopParsec = 0;
-  unsigned long _evNillParsec = 0;
-  byte _percentCPU = 0;
-private:
-  unsigned long _evNillCounter = 0;
-  uint16_t _idleMillisec = 0;  // CPU millisecondes en pause
-  eventItem_t* eventList = nullptr;
-  delayEventItem_t* eventMillisList = nullptr;       // event < 1 seconde
-  delayEventItem_t* eventTenthList = nullptr;        // event < 1 Minute
-  longDelayEventItem_t* eventSecondsList = nullptr;  // autres events up
-  eventHandler_t* handleEventList = nullptr;
-  //eventHandler_t*   getEventList = nullptr;
+//base structure pour une Event avec Delay  (16bit)
+// delay millis   1min  100Hz 10 min  10Hz  1H30  1Hz  18H
+struct eventDelay : public event {
+  eventDelay(const uint8_t code, const uint8_t ext, const uint32_t iParam1, const uint16_t aDelay, const bool repeat = false)
+    : event(code, ext, iParam1), curentDelay(aDelay), repeatDelay(repeat ? aDelay : 0) {}
+
+  uint16_t curentDelay;  // delay millis   1min  100Hz 10 min  10Hz  1H30  1Hz  17H
+  uint16_t repeatDelay;
+};
+
+//base structure pour une Event avec Delay long  (32bit)
+// delay  milis  49Jours  100Hz >1 ans  10Hz  >10ans  1Hz  >100ans
+struct eventLongDelay : public event {
+
+  eventLongDelay(const uint8_t code, const uint8_t ext, const uint32_t iParam1, const uint32_t aDelay, const bool repeat = false)
+    : event(code, ext, iParam1), curentDelay(aDelay), repeatDelay(repeat ? aDelay : 0) {}
+
+
+  uint32_t curentDelay;  // delay  millis  49Jours  100Hz >1 ans  10Hz  >10ans  1Hz  100ans
+  uint32_t repeatDelay;
 };
 
 
 
-extern EventManager Events;
- 
+
+
+
+//   event list
+
+
+
+
+// une liste d'event
+template<typename T>
+class evList {
+private:
+  //    element chainé d'event
+  struct evItem : public T {
+    evItem* next;  // Pointeur vers le prochain nœud
+    evItem(const T& aEvent)
+      : T(aEvent), next(nullptr){};
+    //evItem(T* evHandler, evHandlerItem* next = nullptr) : evHandler(evHandler), next(next) {}
+  };
+  evItem* head;  // Pointeur vers le premier nœud de la liste
+  evItem* tail;  // Pointeur vers le dernier nœud de la liste
+
+public:
+  evList()
+    : head(nullptr), tail(nullptr) {}
+
+  void add(const T& aEvent) {
+    evItem* aItem = new evItem(aEvent);
+    if (tail) {
+      tail->next = aItem;
+    } else {
+      head = aItem;
+    }
+    tail = aItem;
+  }
+
+
+
+
+  bool remove(const evItem* toRemove) {
+    if (!head) return (false);
+    if (head == toRemove) {
+
+      head = head->next;
+      if (head == nullptr) tail = nullptr;
+      delete toRemove;
+      return (true);
+    }
+    for (evItem* prev = head; prev->next; prev = prev->next) {
+      if (prev->next == toRemove) {
+        prev->next = toRemove->next;
+        if (tail == toRemove) tail = prev;
+        delete toRemove;
+        return (true);
+      }
+    }
+    return (false);
+  }
+
+  bool remove(const uint8_t aCode) {
+    if (!head) return (false);
+    if (head->code == aCode) {
+      evItem* toRemove = head;
+      head = head->next;
+      if (head == nullptr) tail = nullptr;
+      delete toRemove;
+      return (true);
+    }
+    for (evItem* prev = head; prev->next; prev = prev->next) {
+      if (prev->next->code == aCode) {
+        evItem* toRemove = prev->next;
+        prev->next = toRemove->next;
+        if (tail == toRemove) tail = prev;
+        delete toRemove;
+        return (true);
+      }
+    }
+    return (false);
+  }
+
+  // push tout les events perimés de la liste sinon decremente leur duree de vie
+  void parseDelay(const uint16_t delay);
+
+
+
+  //~evList() {
+  //clear();
+  //}
+
+
+  friend class EvManager;
+};
+
+
+
+
+
+
+//  event list END
+
+class EvManager : public event {
+public:
+
+  EvManager()
+    : event(evNill) {  // constructeur
+  }
+  void begin();
+  bool get(const bool sleep = true);
+  void handle();
+
+
+
+  bool push(event& aEvent);
+  bool push(const uint8_t code, const int8_t ext = 0, const int iParam = 0);
+  //   //   bool   pushFloat(const uint8_t code, const float   afloat);
+  bool removeDelayEvent(const byte codeevent);
+  bool delayedPushMillis(const uint32_t delayMillisec, const uint8_t code, const uint8_t ext = 0, const int iParam = 0);
+  bool delayedPushSeconds(const uint32_t delaySeconds, const uint8_t code, const uint8_t ext = 0, const int iParam = 0);
+  bool forceDelayedPushMillis(const uint32_t delayMillisec, const uint8_t code, const uint8_t ext = 0, const int iParam = 0, bool repeat = false);
+  bool forceDelayedPushSeconds(const uint32_t delaySeconds, const uint8_t code, const uint8_t ext = 0, const int iParam = 0, bool repeat = false);
+  bool repeatedPushMillis(const uint32_t delayMillisec, const uint8_t code, const uint8_t ext = 0, const int iParam = 0);
+  bool repeatedPushSeconds(const uint32_t delaySeconds, const uint8_t code, const uint8_t ext = 0, const int iParam = 0);
+  //   bool repeatedPushMillis(const uint32_t delayMillisec, const uint8_t code);
+  //   bool delayedPushMillis(const uint32_t delayMillisec, const uint8_t code, const int16_t param1, const int16_t param2 = 0);
+  //   bool repeatedPushMillis(const uint32_t delayMillisec, const uint8_t code, const int16_t param1, const int16_t param2, const bool repeat = false);
+  //   //bool forceDelayedPushMillis(const uint32_t delayMillisec, const uint8_t code);
+  //bool forceDelayedPushMillis(const uint32_t delayMillisec, const uint8_t code, const uint8_t ext = 0, const int16_t int16 = 0);
+  //   //    int    syncroSeconde(const int millisec = 0);
+
+
+  //   void addHandleEvent(eventHandler_t* eventHandlerPtr);
+  //   //    void   addGetEvent(eventHandler_t* eventHandlerPtr);
+private:
+  bool nextEvent();  // Recherche du prochain event disponible
+  byte _percentCPU = 0;
+  unsigned long _loopCounter = 0;
+  unsigned long _loopParsec = 0;
+  unsigned long _evNillParsec = 0;
+  unsigned long _evNillCounter = 0;
+  uint16_t _idleMillisec = 0;  // CPU millisecondes en pause
+
+  evHandlerList<evHandler> handlerList;
+  evList<event> eventList;                  //event pending (no delay)
+  evList<eventDelay> eventMilliList;        //pending Event with delay in millis sec  (less tha 1 sec)   abs max 62 sec
+  evList<eventDelay> eventCentsList;        //pending Event with delay in cents of sec  (less than 1 minute)   (abs max 10 minutes)
+  evList<eventDelay> eventTenthList;        //pending Event with delay in tenth of sec  (less than 1 Hour)   (abs max 1:49 )
+  evList<eventLongDelay> eventSecondsList;  //pending Event with delay in seconds     (abs max more than 100 years )
+
+  // private:
+  //
+  //
+  //   eventItem_t* eventList = nullptr;
+  //   delayEventItem_t* eventMillisList = nullptr;       // event < 1 seconde
+  //   delayEventItem_t* eventTenthList = nullptr;        // event < 1 Minute
+  //   longDelayEventItem_t* eventSecondsList = nullptr;  // autres events up
+  //   eventHandler_t* handleEventList = nullptr;
+  //   //eventHandler_t*   getEventList = nullptr;
+  friend class evHandlerDebug;
+  friend class evHandler;
+};
+
+
+
+extern EvManager Events;
+
+template<typename T>
+// push tout les events perimés de la liste sinon decremente leur duree de vie
+void evList<T>::parseDelay(const uint16_t delay) {
+  evItem* aItem = head;
+  while (aItem) {
+    //DV_print(aItem->code);
+    //DV_println(aItem->curentDelay);
+    if (aItem->curentDelay > delay) {
+      aItem->curentDelay -= delay;
+      aItem = aItem->next;
+    } else {
+      //Serial.print("done waitingdelay : ");
+      //Serial.println(aItem->code);
+      //WW delayEventItem_t* aDelayItemPtr = *ItemPtr;
+      //event aEvent = *aItem;
+      Events.push(*aItem);
+      //DV_println((*ItemPtr)->refDelay);
+
+      if (aItem->repeatDelay == 0) {  //true or
+        evItem* toRemove = aItem;
+        aItem = aItem->next;
+        remove(toRemove);
+      } else {
+        aItem->curentDelay += aItem->repeatDelay;
+        if (delay > aItem->curentDelay) {
+          aItem->curentDelay = 0;
+        } else {
+          aItem->curentDelay -= delay;
+        }
+        aItem = aItem->next;
+      }
+    }
+  }
+}

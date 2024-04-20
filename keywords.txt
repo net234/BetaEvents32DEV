@@ -7,7 +7,7 @@
 #######################################
 
 BetaEvents	KEYWORD1
-EventManager	KEYWORD1
+EvManager	KEYWORD1
 evHandlerSerial	KEYWORD1
 evHandlerLed	KEYWORD1
 evHandlerButton	KEYWORD1
@@ -24,9 +24,6 @@ addEventHandler	KEYWORD2
 removeDelayEvent	KEYWORD2
 push	KEYWORD2
 delayedPush	KEYWORD2
-second	KEYWORD2
-minute	KEYWORD2
-hour	KEYWORD2
 helperFreeRam	KEYWORD2
 timestamp	KEYWORD2
 
@@ -61,8 +58,8 @@ evxLedOff	LITERAL1
 evxLedOn	LITERAL1
 evInChar	LITERAL1
 evInString	LITERAL1
-evxBPDown	LITERAL1
-evxBPUp	LITERAL1
-evxBPLongDown	LITERAL1
-evxBPLongUp	LITERAL1
+evxBPOn	LITERAL1
+evxBPOff	LITERAL1
+evxBPLongOn	LITERAL1
+evxBPLongOff	LITERAL1
 

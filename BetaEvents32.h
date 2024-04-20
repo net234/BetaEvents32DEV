@@ -1,115 +1,42 @@
-/*************************************************
-     Header betaEvents.h   helper yo use a Event system with EventManager
-    Copyright 2020 Pierre HENRY net23@frdev.com All - right reserved.
- 
-  This file is part of betaEvents.
-
-    betaEvents is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Lesser General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    betaEvents is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU Lesser General Public License
-    along with betaEvents.  If not, see <https://www.gnu.org/licenses/lglp.txt>.
-
-
-  History
-    V1.0 (21/11/2020)
-    - Full rebuild from PH_Event V1.3.1 (15/03/2020)
-    V1.1 (30/11/2020)
-    - Ajout du percentCPU pour une meilleur visualisation de l'usage CPU
-    V1.2 02/01/2021
-    - Ajout d'une globale EventManagerPtr pour l'acces par d'autre lib et respecter l'implantation C++
-    - Amelioration du iddle mode pour l'ESP8266 (WiFi sleep mode)
-    V1.3 13/01/2021
-    - correction pour mieux gerer les pulses dans le cas 0 ou 100 percent
-    - ajout setLedOn(true/false)
-    V1.3.1 23/01/2021
-  	- correction setLedOn pour un resultat immediat
-    V1.4   6/3/2021
-    - Inclusion TimeLib.h
-    - Gestion des event en liste chainée
-     V2.0  20/04/2021
-    - Mise en liste chainée de modules 'events' 
-      evHandlerSerial   Gestion des caracteres et des chaines provenant de Serial
-      evHandlerLed      Gestion d'une led avec ou sans clignotement sur un GPIO (Multiple instance possible)
-      evHandlerButton   Gestion d'un pousoir sur un GPIO (Multiple instance possible)
-      evHandlerDebug    Affichage de l'occupation CPU, de la memoire libre et des evenements 100Hz 10Hz et 1Hz
-    - V2.1 27/10/2020
-    V2.2  27/10/2021
-       more arduino like lib with self built in instance
-
-    V2.2.1    12/10/2023   isolation of evHandler for compatibility with dual core ESP32
-
- *************************************************/
 #pragma once
+//EventManager32 uses ESP8266 kernel 3.0
+static_assert(sizeof(time_t) == 8, "This version works with time_t 32bit, please move to ESP8266 kernel 3.0");
 
+// #define D3  0     //!FLASH    BP0
+// #define D4  2     //!LED2     LED0
 
 
 #include "EventsManager32.h"
 // Events Manager build an instance called "Events" who care about events
-//EventManager Events = EventManager();
 
 
 
-//if SERIAL is needed it should be declare first othewise others evHandler cant print during begin
-#ifndef NO_SERIAL
-// instance Serial
-#ifndef SERIAL_SPEED
-#define SERIAL_SPEED 115200
-#endif
 
-#define SERIAL_BUFFERSIZE 100
+//if SERIAL is needed it should be declare first othewise others evHandlers cant print during begin
+evHandlerSerial Keyboard;  //Only one instance  Must be named KeyBoard
 
-
-evHandlerSerial Keyboard(SERIAL_SPEED,SERIAL_BUFFERSIZE);
-
-#ifndef NO_DEBUG
 
 // instance debugger
 evHandlerDebug  Debug;
-#endif
-#endif
 
 
-// instance poussoir si evBP0 existe
-#ifdef DEFAULT_PIN 
+// instance poussoir sud D3 (FLASH) ou BP0_PIN
 
-// definition GPIO sur D3 (FLASH button) pour BP0 si celui ci n'est pas defini
+// definition GPIO sur D3 pour BP0 si celuici n'est pas defini
 #ifndef BP0_PIN
-
 #define BP0_PIN D3 // (flash) 
 #endif
-#endif
 
-#ifdef BP0_PIN
 evHandlerButton BP0(evBP0, BP0_PIN);
 
-#endif
 
 // instance LED si evLed0 existe
-#ifdef DEFAULT_PIN 
 
-//definition GPIO sur D4 pour LED0 si il n'est pas defini par l'utilisateur
-//LED_BUILTIN n'est plus utilisé 
+//definition GPIO sur LED_BUILTIN pour LED0 si il n'est pas defini par l'utilisateur
 #ifndef LED0_PIN
-#define LED0_PIN D4
+#define LED0_PIN D4  // led builtin gpio 2
 #endif
 
-#endif
 
-#ifdef  LED0_PIN
-
-
-//  const bool Led0Revert = true; // reverted led on AVR UNO and NANO
-  const bool Led0Revert = false;  //SUR ESP8266
-
-// led clignotante a 1Hz 
-evHandlerLed    Led0(evLed0, LED0_PIN, Led0Revert , 1);
-
-#endif
+// led clignotante a 1Hz   logique inversée sur ESP
+evHandlerLed    Led0(evLed0, LED0_PIN, false , 1);

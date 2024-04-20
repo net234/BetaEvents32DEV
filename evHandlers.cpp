@@ -1,4 +1,4 @@
-#include "evHelpers.h"
+
 /*************************************************
  *************************************************
     handler evHandlers.cpp   validation of lib betaEvents to deal nicely with events programing with Arduino
@@ -40,7 +40,17 @@
     V2.3    09/03/2022   isolation of evHandler for compatibility with dual core ESP32
 
     *************************************************/
+#include "evHelpers.h"
 #include "evHandlers.h"
+#include "EventsManager32.h"
+
+
+evHandler::evHandler() {
+  //   next = nullptr;
+  Events.handlerList.addHandler(this);
+};
+
+
 
 
 /**********************************************************
@@ -83,11 +93,11 @@ void evHandlerOutput::setOn(const bool status) {
 
 void evHandlerOutput::pulse(const uint32_t aDelay) {  // pulse d'allumage simple
   if (aDelay == 0) {
-    Events.delayedPushMilli(0, evCode, evxOff);
+    Events.delayedPushMillis(0, evCode, evxOff);
     return;
   }
-  Events.delayedPushMilli(0, evCode, evxOn);
-  Events.delayedPushMilli(aDelay, evCode, evxOff);
+  Events.delayedPushMillis(0, evCode, evxOn);
+  Events.delayedPushMillis(aDelay, evCode, evxOff);
 }
 
 
@@ -109,9 +119,9 @@ void evHandlerLed::handle() {
 
       case evxBlink:
         Events.push(evCode, (percent > 0) ? evxOn : evxOff);  // si percent d'allumage = 0 on allume pas
-        if (percent > 0 && percent < 100) {                      // si percent = 0% ou 100% on ne clignote pas
-          Events.delayedPushMilli(millisecondes * percent / 100, evCode, evxOff);
-          Events.forceDelayedPushMilli(millisecondes, evCode, evxBlink);
+        if (percent > 0 && percent < 100) {                   // si percent = 0% ou 100% on ne clignote pas
+          Events.delayedPushMillis(millisecondes * percent / 100, evCode, evxOff);
+          Events.forceDelayedPushMillis(millisecondes, evCode, evxBlink);
         }
         break;
     }
@@ -127,7 +137,7 @@ void evHandlerLed::setOn(const bool status) {
 void evHandlerLed::setMillisec(const uint16_t aMillisecondes, const uint8_t aPercent) {
   millisecondes = max(aMillisecondes, (uint16_t)2);
   percent = aPercent;
-  Events.delayedPushMilli(0, evCode, evxBlink);
+   Events.delayedPushMillis(0, evCode, evxBlink);
 }
 
 void evHandlerLed::setFrequence(const uint8_t frequence, const uint8_t percent) {
@@ -148,7 +158,7 @@ void evHandlerLed::setFrequence(const uint8_t frequence, const uint8_t percent) 
 
 
 evHandlerButton::evHandlerButton(const uint8_t aEventCode, const uint8_t aPinNumber, const uint16_t aLongDelay)
-  : evCode(aEventCode), pinNumber(aPinNumber),  longDelay(aLongDelay) {};
+  : evCode(aEventCode), pinNumber(aPinNumber), longDelay(aLongDelay) {};
 
 void evHandlerButton::begin() {
   pinMode(pinNumber, INPUT_PULLUP);
@@ -160,16 +170,101 @@ void evHandlerButton::handle() {
       state = !state;
       if (state) {
         Events.push(evCode, evxOn);
-        Events.delayedPushMilli(longDelay, evCode, evxLongOn);  // arme un event BP long On
+              Events.delayedPushMillis(longDelay, evCode, evxLongOn);  // arme un event BP long On
       } else {
         Events.push(evCode, evxOff);
-        Events.delayedPushMilli(longDelay, evCode, evxLongOff);  // arme un event BP long Off
+            Events.delayedPushMillis(longDelay, evCode, evxLongOff);  // arme un event BP long Off
       }
     }
   }
 }
 
 #ifndef __AVR_ATtiny85__
+
+/***************************************************************
+
+
+  Gestion de pousoirs avec un port analogique (A0)
+  genere un evxOn  evxOff
+  si repeatDelay est fournis un evxRepeat est generé
+
+   +------ A0
+    |
+    +------R10K-----V3.3
+    |
+    +-[SEL]------------GND
+    |
+    +-[NEXT]----R2K----GND
+    |
+    +-[BEFORE]--R4,7K--GND
+    |
+    +-[INC]---- R5,6K--GND
+    |
+    +-[DEC]-----R7,5K--GND
+
+
+****************************************************************/
+
+//evHandlerKeypad::evHandlerKeypad(const uint8_t aEventCode, const uint8_t aPinNumber, const uint16_t aRepeatDelay)
+//  : evCode(aEventCode), pinNumber(aPinNumber), repeatDelay(aRepeatDelay){};
+
+/*
+  evHandlerKeypad::begin() {
+   //TODO: aTable to setup spec ific value for the pad
+  }
+*/
+void evHandlerKeypad::handle() {
+  if (Events.code == evCode and Events.ext == evxRepeat) {
+    if (currentDelay >= repeatDelay / 4) {
+      currentDelay -= repeatDelay / 10;
+    }
+    Events.delayedPushMillis(currentDelay, evCode, evxRepeat, key);  // arme un event BP long On
+    return;
+  }
+  if (Events.code != ev10Hz) return;
+
+  int aValue = analogRead(pinNumber);
+  if (abs(value - aValue) > 10) {
+
+    pendingValue = true;
+    value = aValue;
+    //DTV_println("Pending keypad", value);
+    return;
+  }
+  if (!pendingValue) return;
+
+  pendingValue = false;
+  //DV_print(value);
+  //key = 0;
+  if (value > 1000) {  //key
+    //ZZ   Events.delayedPushMillis(0, evCode, evxOff, key);  //clear repeat
+    return;
+  } else if (value > 450) {
+    key = 0b00000010;  //droite
+  } else if (value > 380) {
+    key = 0b00000100;  //gauche
+  } else if (value > 340) {
+    key = 0b00001000;  //haut
+  } else if (value > 260) {
+    key = 0b00000110;  //gauche + droite
+  } else if (value > 180) {
+    key = 0b00010000;  //bas
+  } else if (value > 140) {
+    key = 0b00011000;  //haut + bas
+  } else {
+    key = 0b00000001;  //millieux
+  }
+  //DV_print(key);
+  Events.push(evCode, evxOn, key);
+  if (key != 1) {
+    currentDelay = repeatDelay;
+    Events.delayedPushMillis(currentDelay, evCode, evxRepeat, key);  // arme un event BP long On
+  }
+  return;
+}
+
+
+
 /**********************************************************
 
    gestion de Serial pour generer les   evInChar et  evInString
@@ -180,7 +275,6 @@ evHandlerSerial::evHandlerSerial(const uint32_t aSerialSpeed, const uint8_t inpu
   : serialSpeed(aSerialSpeed),
     inputStringSizeMax(inputStringSize) {
   inputString.reserve(inputStringSize);
-  //evManager.(this);
 }
 
 void evHandlerSerial::begin() {
@@ -191,7 +285,7 @@ byte evHandlerSerial::get() {
   if (stringComplete) {
     stringComplete = false;
     stringErase = true;  // la chaine sera effacee au prochain caractere recu
-    Events.StringPtr = &inputString;
+    Events.strPtrParam = &inputString;
     return (Events.code = evInString);
   }
   if (Serial.available()) {
@@ -206,7 +300,7 @@ byte evHandlerSerial::get() {
     if (inputChar == '\n' || inputChar == '\r') {
       stringComplete = (inputString.length() > 0);
     }
-    Events.charExt = inputChar;
+    Events.cParam = inputChar;
     return (Events.code = evInChar);
   }
   return (evNill);
@@ -214,12 +308,13 @@ byte evHandlerSerial::get() {
 
 
 /**********************
- * 
- * forcage d'une inputstring
- */
 
-void  evHandlerSerial::setInputString(const String aStr) {
+   forcage d'une inputstring
+*/
+
+void evHandlerSerial::setInputString(const String aStr) {
   inputString = aStr;
+  stringErase = false;
   stringComplete = (inputString.length() > 0);
 }
 
@@ -235,7 +330,6 @@ void  evHandlerSerial::setInputString(const String aStr) {
 void evHandlerDebug::handle() {
   switch (Events.code) {
     case ev1Hz:
-
       if (trackTime) {
         Serial.print(Digit2_str(hour()));
         Serial.print(':');
@@ -246,7 +340,6 @@ void evHandlerDebug::handle() {
         Serial.print(Events._percentCPU);
         Serial.print('%');
         if (trackTime < 2) {
-
           Serial.print(F(",Loop="));
           Serial.print(Events._loopParsec);
           Serial.print(F(",Nill="));
@@ -275,13 +368,13 @@ void evHandlerDebug::handle() {
 
     case ev10Hz:
 
-      ev10HzMissed += Events.intExt - 1;
+      ev10HzMissed += Events.iParam - 1;
       if (trackTime > 1) {
 
-        if (Events.intExt > 1) {
+        if (Events.iParam > 1) {
           //        for (int N = 2; N<currentEvent.param; N++) Serial.print(' ');
           Serial.print('X');
-          Serial.print(Events.intExt - 1);
+          Serial.print(Events.iParam - 1);
         } else {
           Serial.print('|');
         }
@@ -289,27 +382,23 @@ void evHandlerDebug::handle() {
       break;
 
     case ev100Hz:
-      ev100HzMissed += Events.intExt - 1;
+      ev100HzMissed += Events.iParam - 1;
 
       if (trackTime > 2) {
 
-        if (Events.intExt > 1) {
+        if (Events.iParam > 1) {
           //      for (int N = 3; N<currentEvent.param; N++) Serial.print(' ');
           Serial.print('x');
-          Serial.print(Events.intExt - 1);
+          Serial.print(Events.iParam - 1);
         } else {
           Serial.print('_');
         }
       }
       break;
     case evInString:
-      if (Events.StringPtr->equals("T")) {
-        if (++(trackTime) > 3) {
-
-          trackTime = 0;
-        }
-        Serial.print("\nTrackTime=");
-        Serial.println(trackTime);
+      if (Events.strPtrParam->equals("T")) {
+        if (++(trackTime) > 3) trackTime = 0;
+        DV_println(trackTime);
       }
 
       break;

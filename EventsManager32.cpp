@@ -1,5 +1,6 @@
-#include <sys/_timeval.h>
-//#include "evHelpers.h"
+#include "evHelpers.h"
+//#include <sys/_stdint.h>
+
 /*************************************************
      Sketch betaEvents.ino   validation of lib betaEvents to deal nicely with events programing with Arduino
     Copyright 2020 Pierre HENRY net23@frdev.com All - right reserved.
@@ -42,16 +43,13 @@
        more arduino like lib with self built in instance
 
     V2.3    09/03/2022   isolation of evHandler for compatibility with dual core ESP32
-betaEvents32 V3.0.D  07/03/2024
-      reprise en main PROD/DEV
-      Try auto instance Events
-      
+
  *************************************************/
 //#define BETAEVENTS_CCP
 
 
 #include "EventsManager32.h"
-
+/*
 // Base structure for an EventItem in an EventList
 struct eventItem_t : public stdEvent_t {
   eventItem_t(const uint8_t code = evNill, const int ext = 0)
@@ -69,8 +67,12 @@ struct delayEventItem_t : public stdEvent_t {
   delayEventItem_t(const uint16_t aDelay, const uint8_t code, const int ext = 0)
     : stdEvent_t(code, ext), nextItemPtr(nullptr), delay(aDelay), refDelay(0) {}
   delayEventItem_t(const uint16_t aDelay, const uint8_t code, const int16_t int1, const int16_t int2, const bool repeat = false)
-    : stdEvent_t(code, int1, int2), nextItemPtr(nullptr), delay(aDelay) {
-    refDelay = (repeat) ? aDelay : 0;
+    : stdEvent_t(code, int1, int2), nextItemPtr(nullptr), delay(aDelay), refDelay(0) {
+    //TODO:  un delay de depart different de 0
+    if (repeat) {
+      refDelay = aDelay;
+      delay = 0;
+    }
   }
   delayEventItem_t(const delayEventItem_t& stdEvent)
     : stdEvent_t(stdEvent), nextItemPtr(nullptr), delay(stdEvent.delay), refDelay(stdEvent.refDelay) {}
@@ -83,8 +85,12 @@ struct longDelayEventItem_t : public stdEvent_t {
   longDelayEventItem_t(const uint32_t aDelay, const uint8_t code, const int ext = 0)
     : stdEvent_t(code, ext), nextLongItemPtr(nullptr), longDelay(aDelay), longRefDelay(0) {}
   longDelayEventItem_t(const uint16_t aDelay, const uint8_t code, const int16_t int1, const int16_t int2, const bool repeat = false)
-    : stdEvent_t(code, int1, int2), nextLongItemPtr(nullptr), longDelay(aDelay) {
-    longRefDelay = (repeat) ? aDelay : 0;
+    : stdEvent_t(code, int1, int2), nextLongItemPtr(nullptr), longDelay(aDelay), longRefDelay(0) {
+       //TODO:  un delay de depart different de 0
+    if (repeat) {
+      longRefDelay = aDelay;
+      longDelay = 0;
+    }
   }
   longDelayEventItem_t(const longDelayEventItem_t& stdEvent)
     : stdEvent_t(stdEvent), nextLongItemPtr(nullptr), longDelay(stdEvent.longDelay), longRefDelay(stdEvent.longRefDelay) {}
@@ -94,12 +100,8 @@ struct longDelayEventItem_t : public stdEvent_t {
 };
 
 
-/*
-#ifdef __AVR__
-#include <avr/sleep.h>
-#include <avr/wdt.h>
-#endif
-*/
+
+
 
 //#ifdef ESP32
 //#include <driver/uart.h>
@@ -107,33 +109,19 @@ struct longDelayEventItem_t : public stdEvent_t {
 
 eventHandler_t::eventHandler_t() {
   next = nullptr;
-  Events.addHandleEvent(this);
+  evManager.addHandleEvent(this);
 };
 
 
 
 
-void EventManager::begin() {
-#ifdef __AVR__
-  /*
-    Atmega328 seul et en sleep mode:  // 22 mA
-    SLEEP_MODE_IDLE:       15 mA      //15 mA
-    SLEEP_MODE_ADC:         6,5 mA    //30 mA  no timer1
-    SLEEP_MODE_PWR_SAVE:    1,62 mA   //22 mA  no timer1
-    SLEEP_MODE_EXT_STANDBY: 1,62 mA   //22 mA  no timer1
-    SLEEP_MODE_STANDBY :    0,84 mA   //21 mA  no timer1
-    SLEEP_MODE_PWR_DOWN :   0,36 mA   //21 mA  no timer1
-  */
-  set_sleep_mode(SLEEP_MODE_IDLE);
-  sleep_enable();
-#endif
-  // parse event list
-  eventHandler_t* ItemPtr = handleEventList;
-  while (ItemPtr) {
-    (ItemPtr)->begin();
-    ItemPtr = ((ItemPtr)->next);
-  }
 
+*/
+
+void EvManager::begin() {
+  DT_println("EvManager::begin");
+  // parse event list
+  handlerList.parseBegin();
   push(evInit);
 }
 
@@ -145,6 +133,7 @@ static uint16_t delta1Hz = 0;
 static uint16_t delta10Hz = 0;
 static uint16_t delta100Hz = 0;
 
+/*
 
 //int EventManager::syncroSeconde(const int millisec) {
 //  int result =  millisec - delta1Hz;
@@ -155,77 +144,69 @@ static uint16_t delta100Hz = 0;
 //  }
 //  return result;
 //}
+*/
 
-
-byte EventManager::get(const bool sleepOk) {  //  sleep = true;
-  bool eventWasNill = (code == evNill);
+//return true il anEvent is here
+bool EvManager::get(const bool sleepOk) {  //  sleep = true;
+  bool eventWasNill = (code == evNill);    // previous event was a evNill
   _loopCounter++;
+
   // cumul du temps passé
   uint16_t delta = millis() - milliSeconds;  // max 64 secondes
   if (delta) {
     milliSeconds += delta;
-    parseDelayList(&(eventMillisList), delta);
+    eventMilliList.parseDelay(delta);
     delta100Hz += delta;
     delta10Hz += delta;
     delta1Hz += delta;
   }
-  // recuperation des events passés
-  if (nextEvent()) return (code);
+
+  // recuperation des events passés   hors sleep time
+  if (nextEvent()) return (true);
+  // no event in list
 
   // si SleepOk et que l'evenement precedent etait un nillEvent on frezze le CPU
+  // mooving in sleep mode
   if (sleepOk && eventWasNill) {
 
-#ifdef __AVR__
-    sleep_mode();
-#endif
-#ifdef ESP8266
     // pour l'ESP8266 pas de sleep simple
     // !! TODO :  faire un meilleur sleep ESP32 & ESP8266
     //while (milliSeconds == millis()) yield();
-    delay(1);  // to allow wifi sleep in modem mode
-#endif
-#ifdef ESP32
-    // Minimize power from 65ma to 35ma
-    // TODO: a tester avec le WiFi actif
-    //setCpuFrequencyMhz(80);
-    //delayMicroseconds(700);
-    delay(1);
-    //setCpuFrequencyMhz(240);
-
-#endif
-    delta = millis() - milliSeconds;
+    delay(1);                         // to allow wifi sleep in modem mode
+    delta = millis() - milliSeconds;  // should be 1 max
     if (delta) {
       _idleMillisec += delta;
       milliSeconds += delta;
-      parseDelayList(&(eventMillisList), delta);
+      eventMilliList.parseDelay(delta);
       delta100Hz += delta;
       delta10Hz += delta;
       delta1Hz += delta;
     }
     // recuperation des events passés
-    if (nextEvent()) return (code);
+    if (nextEvent()) return (true);  //during sleep mode
   }
+
   _evNillCounter++;
   return (code = evNill);
 }
 
 
 ///////////////////////////////////////////////////////////
-// get next done event
-byte EventManager::nextEvent() {
+// get next event
+bool EvManager::nextEvent() {
 
-  // les ev100Hz ne sont pas tous restitués mais le nombre est dans aInt de l'event
+  // les ev100Hz ne sont pas tous restitués mais le nombre est dans iParam de l'event
 
   if (delta100Hz >= 10) {
-    intExt = (delta100Hz / 10);  // nombre d'ev100Hz d'un coup
-    delta100Hz -= (intExt)*10;
+    iParam = (delta100Hz / 10);  // nombre d'ev100Hz d'un coup
+    delta100Hz -= (iParam)*10;
     return (code = ev100Hz);
   }
 
-  // les ev10Hz ne sont pas tous restitués mais le nombre est dans aInt de l'event
+  // les ev10Hz ne sont pas tous restitués mais le nombre est dans iParam de l'event
   if (delta10Hz >= 100) {
-    intExt = (delta10Hz / 100);  // nombre d'ev10Hz d'un coup
-    delta10Hz -= (intExt)*100;
+    iParam = (delta10Hz / 100);  // nombre d'ev10Hz d'un coup
+    delta10Hz -= (iParam)*100;
     return (code = ev10Hz);
   }
 
@@ -236,109 +217,39 @@ byte EventManager::nextEvent() {
     return (code = ev1Hz);
   }
 
-  // gestionaire de getEvent
-  eventHandler_t* aItem = handleEventList;
-  while (aItem) {
-    if (aItem->get()) return (code);
-    aItem = aItem->next;
+  // pase all the get methode of evry event handler
+  // return the first event
+  if (handlerList.parseGet()) return true;
+  // still no evant
+  // grab the oldest event in eventList (if any)
+  if (eventList.head) {
+    *static_cast<event*>(this) = *eventList.head;  // copie par l'operateur par defaut
+    eventList.remove(eventList.head);
+    return true;
   }
-
-  // les evenements sans delay sont geré ici
-  // les delais sont gere via ev100HZ ev1Hz
-  if (eventList) {
-    eventItem_t* itemPtr = eventList->nextItemPtr;
-    //stdEvent_t(*eventList);
-    code = eventList->code;
-    intExt = eventList->intExt;
-    intExt2 = eventList->intExt2;
-    delete eventList;
-    eventList = itemPtr;
-    return (Events.code);
-  }
-
-  return (Events.code = evNill);
-}
-
-
-// push tout les events perimés de la liste sinon decremente leur duree de vie
-void EventManager::parseDelayList(delayEventItem_t** ItemPtr, const uint16_t delay) {
-  while (*ItemPtr) {
-    if ((*ItemPtr)->delay > delay) {
-      (*ItemPtr)->delay -= delay;
-      ItemPtr = &((*ItemPtr)->nextItemPtr);
-    } else {
-      //Serial.print("done waitingdelay : ");
-      //D_println((*ItemPtr)->code);
-      delayEventItem_t* aDelayItemPtr = *ItemPtr;
-      push(*aDelayItemPtr);
-      //DV_println((*ItemPtr)->refDelay);
-      if ( (*ItemPtr)->refDelay == 0) {  //true or
-        *ItemPtr = (*ItemPtr)->nextItemPtr;
-        delete aDelayItemPtr;
-      } else {
-        (*ItemPtr)->delay += (*ItemPtr)->refDelay;
-      }
-    }
-  }
-}
-
-void EventManager::parseLongDelayList(longDelayEventItem_t** ItemPtr, const uint16_t aDelay) {
-  while (*ItemPtr) {
-    if ((*ItemPtr)->longDelay > aDelay) {
-      (*ItemPtr)->longDelay -= aDelay;
-      ItemPtr = &((*ItemPtr)->nextLongItemPtr);
-    } else {
-      //Serial.print("done waitingdelay : ");
-      //D_println((*ItemPtr)->code);
-      longDelayEventItem_t* aItemPtr = *ItemPtr;
-      *ItemPtr = (*ItemPtr)->nextLongItemPtr;
-      push(*aItemPtr);
-      delete aItemPtr;
-    }
-  }
+  code = evNill;
+  ext = 0;
+  iParam = 0;
+  return (false);
 }
 
 
 
-void EventManager::handle() {
+void EvManager::handle() {
   // parse event list
-  eventHandler_t** ItemPtr = &handleEventList;
-  while (*ItemPtr) {
-    (*ItemPtr)->handle();
-    ItemPtr = &((*ItemPtr)->next);
-  }
+  handlerList.parseHandle();
+
   switch (code) {
       // gestion des evenement avec delay au 100' de seconde
       // todo  gerer des event repetitifs
 
-      //    case ev100Hz: {
-      //        parseDelayList( &(eventCentsList), aInt);
-      //      }
-
-      //break;
-
-    case ev10Hz:
-      {
-        parseDelayList(&(eventTenthList), intExt);
-      }
-
-      break;
-
-
-
-
+    case ev100Hz: eventCentsList.parseDelay(iParam); break;
+    case ev10Hz: eventTenthList.parseDelay(iParam); break;
     case ev1Hz:
       {
 
         _percentCPU = 100 - (100UL * _idleMillisec / 1000);
 
-#ifndef _Time_h
-        timestamp++;
-        uint16_t aDay = timestamp / 86400L;
-        if (timestamp % 86400L == 0) {  // 60 * 60 * 24
-          push(ev24H, aDay);            // User may take care of days
-        }
-#else
         // Ev24h only when day change but not just after a boot
         static uint8_t oldDay = 0;
         uint16_t aDay = day();
@@ -347,8 +258,7 @@ void EventManager::handle() {
           oldDay = aDay;
         }
 
-#endif
-        parseLongDelayList(&eventSecondsList, 1);
+        eventSecondsList.parseDelay(1);
         //        Serial.print("iddle="); Serial.println(_idleMillisec);
         //        Serial.print("CPU% ="); Serial.println(_percentCPU);
         //        Serial.print("_evNillCounter="); Serial.println(_evNillCounter);
@@ -365,23 +275,22 @@ void EventManager::handle() {
 }
 
 
-bool EventManager::push(const stdEvent_t& aevent) {
-  eventItem_t** itemPtr = &(eventList);
-  while (*itemPtr) itemPtr = &((*itemPtr)->nextItemPtr);
-  *itemPtr = new eventItem_t(aevent);
+
+bool EvManager::push(event& aEvent) {
+  eventList.add(aEvent);
   return (true);
 }
-
+/*
 bool EventManager::push(const uint8_t codeP, const int16_t paramP) {
   eventItem_t aEvent(codeP, paramP);
   return (push(aEvent));
 }
-
-bool EventManager::push(const uint8_t codeP, const int16_t param1, const int16_t param2) {
-  eventItem_t aEvent(codeP, param1, param2);
+*/
+bool EvManager::push(const uint8_t code, const int8_t ext, const int iParam) {
+  event aEvent(code, ext, iParam);
   return (push(aEvent));
 }
-
+/*
 void EventManager::addHandleEvent(eventHandler_t* aHandler) {
   eventHandler_t** ItemPtr = &handleEventList;
   while (*ItemPtr) ItemPtr = &((*ItemPtr)->next);
@@ -396,148 +305,124 @@ void EventManager::addHandleEvent(eventHandler_t* aHandler) {
 
 
 
-void EventManager::addDelayEvent(delayEventItem_t** ItemPtr, delayEventItem_t* aItem) {
-  while (*ItemPtr) ItemPtr = &((*ItemPtr)->nextItemPtr);
-  *ItemPtr = aItem;
-}
-void EventManager::addLongDelayEvent(longDelayEventItem_t** ItemPtr, longDelayEventItem_t* aItem) {
-  while (*ItemPtr) ItemPtr = &((*ItemPtr)->nextLongItemPtr);
-  *ItemPtr = aItem;
-}
 
 
+*/
 
-bool EventManager::forceDelayedPushMilli(const uint32_t delayMillisec, const uint8_t code, const int16_t param1, const int16_t param2) {
-
+bool EvManager::forceDelayedPushMillis(const uint32_t delayMillisec, const uint8_t code, const uint8_t ext, const int iParam, bool repeat) {
+  // delay millis   1min  100Hz 10 min  10Hz  1H30  1Hz  17H
   if (delayMillisec == 0) {
-    return (push(code, param1, param2));
+    return (push(code, ext, iParam));
   }
+
   if (delayMillisec < 1000UL) {  // moins de 1 secondes
-    addDelayEvent(&(eventMillisList), new delayEventItem_t(delayMillisec, code, param1, param2));
+    eventDelay aEvent = eventDelay(code, ext, iParam, delayMillisec, repeat);
+    eventMilliList.add(aEvent);
     return (true);
   }
-  if (delayMillisec < 600UL * 1000UL) {  // moins de 10 minute
-    addDelayEvent(&(eventTenthList), new delayEventItem_t(delayMillisec / 100, code, param1, param2));
+
+  if (delayMillisec < 1000UL * 60) {  // moins de 1 Minute
+    eventDelay aEvent = eventDelay(code, ext, iParam, delayMillisec / 10, repeat);
+    eventCentsList.add(aEvent);
     return (true);
   }
-  addLongDelayEvent(&(eventSecondsList), new longDelayEventItem_t(delayMillisec / 1000, code, param1, param2));
+
+
+  if (delayMillisec < 1000UL * 3600) {  // moins de 1 heure
+    eventDelay aEvent = eventDelay(code, ext, iParam, delayMillisec / 100, repeat);
+    eventTenthList.add(aEvent);
+    return (true);
+  }
+  //long event (more than 100 years :)
+  eventLongDelay aEvent = eventLongDelay(code, ext, iParam, delayMillisec / 1000, repeat);
+  eventSecondsList.add(aEvent);
+
+
+  return (true);
+}
+
+bool EvManager::forceDelayedPushSeconds(const uint32_t delaySeconds, const uint8_t code, const uint8_t ext, const int iParam, bool repeat) {
+  if (delaySeconds == 0) {
+    return (push(code, ext, iParam));
+  }
+
+  if (delaySeconds < 60UL) {  // moins de 1 Minute
+    eventDelay aEvent = eventDelay(code, ext, iParam, delaySeconds * 100, repeat);
+    eventCentsList.add(aEvent);
+    return (true);
+  }
+
+
+  if (delaySeconds < 3600UL) {  // moins de 1 heure
+    eventDelay aEvent = eventDelay(code, ext, iParam, delaySeconds * 10,repeat);
+    eventTenthList.add(aEvent);
+    return (true);
+  }
+  //long event (more than 100 years :)
+  eventLongDelay aEvent = eventLongDelay(code, ext, iParam, delaySeconds,repeat);
+  eventSecondsList.add(aEvent);
+
 
   return (true);
 }
 
 
-bool EventManager::delayedPushMilli(const uint32_t delayMillisec, const uint8_t code, const int16_t param1, const int16_t param2) {
+
+// remove all pending events with same code then add the deleayed event in milliseconds (max 49 days)
+bool EvManager::delayedPushMillis(const uint32_t delayMillisec, const uint8_t code, const uint8_t ext, const int iParam) {
   while (removeDelayEvent(code)) {};
-  return (forceDelayedPushMilli(delayMillisec, code, param1, param2));
+  return (forceDelayedPushMillis(delayMillisec, code, ext, iParam));
 }
-
-bool EventManager::delayedPushMilli(const uint32_t delayMillisec, const uint8_t code) {
+// remove all pending events with same code then add the deleayed event in milliseconds (max over 100 years)
+bool EvManager::delayedPushSeconds(const uint32_t delaySeconds, const uint8_t code, const uint8_t ext, const int iParam) {
   while (removeDelayEvent(code)) {};
-  return (forceDelayedPushMilli(delayMillisec, code));
-}
-
-bool EventManager::repeatedPushMilli(const uint32_t delayMillisec, const uint8_t code) {
-  while (removeDelayEvent(code)) {};
-  if (delayMillisec < 10) return (false);
-  if (delayMillisec < 1000UL) {  // moins de 1 secondes
-    addDelayEvent(&(eventMillisList), new delayEventItem_t(delayMillisec, code, 0, 0, true));
-    return (true);
-  }
-  if (delayMillisec < 600UL * 1000UL) {  // moins de 10 minute
-    addDelayEvent(&(eventTenthList), new delayEventItem_t(delayMillisec / 100, code, 0, 0, true));
-    return (true);
-  }
-  addLongDelayEvent(&(eventSecondsList), new longDelayEventItem_t(delayMillisec / 1000, code, 0, 0, true));
-
-  return (true);
-};
-
-
-
-bool EventManager::removeDelayEventFromList(const byte codeevent, delayEventItem_t** nextItemPtr) {
-  while (*nextItemPtr) {
-    if ((*nextItemPtr)->code == codeevent) {
-      delayEventItem_t* aevent = *nextItemPtr;
-      *nextItemPtr = (*nextItemPtr)->nextItemPtr;
-      delete aevent;
-      return true;
-    }
-    nextItemPtr = &((*nextItemPtr)->nextItemPtr);
-  }
-  return (false);
-}
-bool EventManager::removeLongDelayEventFromList(const byte codeevent, longDelayEventItem_t** nextItemPtr) {
-  while (*nextItemPtr) {
-    if ((*nextItemPtr)->code == codeevent) {
-      longDelayEventItem_t* aevent = *nextItemPtr;
-      *nextItemPtr = (*nextItemPtr)->nextLongItemPtr;
-      delete aevent;
-      return true;
-    }
-    nextItemPtr = &((*nextItemPtr)->nextLongItemPtr);
-  }
-  return (false);
+  return (forceDelayedPushSeconds(delaySeconds * 1000, code, ext, iParam));
 }
 
 
-
-
-bool EventManager::removeDelayEvent(const byte codeevent) {
-  return (removeDelayEventFromList(codeevent, &(eventMillisList)) || removeDelayEventFromList(codeevent, &(eventTenthList)) || removeLongDelayEventFromList(codeevent, &(eventSecondsList)));
-}
-
-
-EventManager Events = EventManager();
 /*
-//====== Sram dispo =========
-size_t EventManager::freeRam() {
-#ifndef __AVR__
-
-  return ESP.getFreeHeap();
-#else
-
-  extern int __heap_start, *__brkval;
-  int v;
-  return (int)&v - (__brkval == 0 ? (int)&__heap_start : (int)__brkval);
-#endif
-}
-
-void EventManager::reset() {
-  delay(100);
-#ifdef __AVR__
-  wdt_enable(WDTO_120MS);
-#else
-  ESP.restart();
-#endif
-  while (1) {
-    delay(1);
-  }
+bool EventManager::delayedPushMillis(const uint32_t delayMillisec, const uint8_t code) {
+  while (removeDelayEvent(code)) {};
+  return (forceDelayedPushMillis(delayMillisec, code));
 }
 */
 
+// le repeated ne peut pas etre inferieur a 10Ms
+// il efface tout les pendinfg event du meme code
+// les 2 parametres sont forcement a zero
+bool EvManager::repeatedPushMillis(const uint32_t delayMillisec, const uint8_t code, const uint8_t ext, const int iParam) {
+  while (removeDelayEvent(code)) {};
+  if (delayMillisec > 0 and delayMillisec < 10) return (false);
+  return (forceDelayedPushMillis(delayMillisec, code, ext, iParam, true));
+}
+bool EvManager::repeatedPushSeconds(const uint32_t delaySeconds, const uint8_t code, const uint8_t ext, const int iParam) {
+  while (removeDelayEvent(code)) {};
+  if (delaySeconds == 0 ) return (false);
+  return (forceDelayedPushSeconds(delaySeconds, code, ext, iParam, true));
+}
 
-//void displaySizeofItems() {
-//  DV_println(sizeof(delayEventItem_t));
-//  DV_println(sizeof(longDelayEventItem_t));
-//};
+bool EvManager::removeDelayEvent(const byte codeevent) {
+  return (eventMilliList.remove(codeevent) || eventCentsList.remove(codeevent) || eventTenthList.remove(codeevent) || eventSecondsList.remove(codeevent));
+}
+
+/*
+
+void displaySizeofItems() {
+  DV_println(sizeof(delayEventItem_t));
+  DV_println(sizeof(longDelayEventItem_t));
+};
 
 #ifndef _Time_h
 byte second() {
-  return second(Events.timestamp);
-}
-byte second(time_t time) {
-  return (time % 60);
+  return (evManager.timestamp % 60);
 }
 byte minute() {
-  return minute(Events.timestamp);
-}
-byte minute(time_t time) {
-  return ((time / 60) % 60);
+  return ((evManager.timestamp / 60) % 60);
 }
 byte hour() {
-  return hour(Events.timestamp);
-}
-byte hour(time_t time) {
-  return ((time / 3600) % 24);
+  return ((evManager.timestamp / 3600) % 24);
 }
 #endif
+*/
+
+EvManager Events = EvManager();
